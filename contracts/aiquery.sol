@@ -117,10 +117,41 @@ contract AIChainlinkRequest is ChainlinkClient {
     }
 
     /**
-     * @notice Callback function called by the Chainlink oracle with the AI evaluation results
-     * @param _requestId The ID of the Chainlink request
-     * @param likelihoods An array of integers representing the likelihoods of each option
-     * @param justificationCID The CID of the textual justification for the evaluation
+     * @notice New function with the same interface as the aggregator.
+     *         It accepts additional parameters for alpha, maxFee, estimatedBaseCost, and maxFeeBasedScalingFactor,
+     *         but these values are ignored.
+     * @param cids An array of IPFS CIDs representing the data to be evaluated.
+     * @return requestId The ID of the Chainlink request.
+     */
+    function requestAIEvaluationWithApproval(
+        string[] memory cids,
+        uint256 /* _alpha */,
+        uint256 /* _maxFee */,
+        uint256 /* _estimatedBaseCost */,
+        uint256 /* _maxFeeBasedScalingFactor */
+    ) public returns (bytes32 requestId) {
+        // Even though these parameters are accepted,
+        // they are ignored in this simple contract.
+        require(cids.length > 0, "CIDs array must not be empty");
+
+        require(
+            LinkTokenInterface(chainlinkTokenAddress()).transferFrom(msg.sender, address(this), fee),
+            "transferFrom for fee failed"
+        );
+
+        Chainlink.Request memory request = buildOperatorRequest(jobId, this.fulfill.selector);
+        string memory cidsConcatenated = concatenateCids(cids);
+        request.add("cid", cidsConcatenated);
+
+        requestId = sendOperatorRequest(request, fee);
+        emit RequestAIEvaluation(requestId, cids);
+    }
+
+    /**
+     * @notice Callback function called by the Chainlink oracle with the AI evaluation results.
+     * @param _requestId The ID of the Chainlink request.
+     * @param likelihoods An array of integers representing the likelihoods of each option.
+     * @param justificationCID The CID of the textual justification for the evaluation.
      */
     function fulfill(
         bytes32 _requestId,
@@ -189,13 +220,13 @@ contract AIChainlinkRequest is ChainlinkClient {
         return (oracle, chainlinkTokenAddress(), jobId, fee);
     }
 
-function getEvaluation(bytes32 _requestId) 
-    public 
-    view 
-    returns (uint256[] memory likelihoods, string memory justificationCID, bool exists) 
-{
-    Evaluation storage eval = evaluations[_requestId];
-    return (eval.likelihoods, eval.justificationCID, eval.exists);
+    function getEvaluation(bytes32 _requestId) 
+        public 
+        view 
+        returns (uint256[] memory likelihoods, string memory justificationCID, bool exists) 
+    {
+        Evaluation storage eval = evaluations[_requestId];
+        return (eval.likelihoods, eval.justificationCID, eval.exists);
+    }
 }
-}
-  
+
