@@ -51,6 +51,14 @@ contract AIChainlinkRequest is ChainlinkClient {
         jobId = _jobId;
         fee = _fee;
     }
+    
+    /**
+     * @notice Calculate the maximum total fee that might be required
+     * @return The maximum total fee (equal to fee for this contract)
+     */
+    function maxTotalFee() public view returns (uint256) {
+        return fee; // For simple contract, maxTotalFee equals fee
+    }
 
     /**
      * @notice Request an AI evaluation via the Chainlink oracle using user-funded LINK.
