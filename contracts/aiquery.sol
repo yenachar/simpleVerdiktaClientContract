@@ -53,13 +53,12 @@ contract AIChainlinkRequest is ChainlinkClient {
     }
     
     /**
-     * @notice Calculate the maximum total fee that might be required based on provided max oracle fee
-     * @param requestedMaxOracleFee The requested maximum oracle fee which may be lower than the contract's maxOracleFee
-     * @return The maximum total fee 
+     * @notice Calculate the maximum total fee that might be required based on a provided max oracle fee.
+     * @return The maximum total fee that will be charged in a call.
      */
-    function maxTotalFee(uint256 requestedMaxOracleFee) public view returns (uint256) {
-        uint256 effectiveMaxOracleFee = requestedMaxOracleFee < fee ? requestedMaxOracleFee : fee;
-        return effectiveMaxOracleFee;
+    function maxTotalFee(uint256 /* requestedMaxOracleFee */) public view returns (uint256) {
+        // for this client contract, the fee is always the same.
+        return fee;
     }
 
     /**
