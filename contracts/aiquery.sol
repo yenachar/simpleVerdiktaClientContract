@@ -27,6 +27,16 @@ contract AIChainlinkRequest is ChainlinkClient {
         bool exists;
     }
 
+    // ------------------------------------------------------------------------
+    // Limits for CID inputs
+    // ------------------------------------------------------------------------
+    uint256 public constant MAX_CID_COUNT = 10;
+    uint256 public constant MAX_CID_LENGTH = 100;
+    uint256 public constant MAX_ADDENDUM_LENGTH = 1000;
+
+    // New: Stored oracle class (default 128) – changeable by the owner.
+    uint64 public requiredClass;
+
     // Events
     event RequestAIEvaluation(bytes32 indexed requestId, string[] cids);
     event FulfillAIEvaluation(bytes32 indexed requestId, uint256[] likelihoods, string justificationCID);
@@ -43,13 +53,15 @@ contract AIChainlinkRequest is ChainlinkClient {
      * @param _jobId The job ID for the Chainlink request.
      * @param _fee The fee required to make a request (in LINK tokens).
      * @param _link The address of the LINK token contract.
+     * @param _requiredClass The required oracle class.
      */
-    constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link) {
+    constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link, uint64 _requiredClass) {
         setChainlinkToken(_link);
         setChainlinkOracle(_oracle);
         oracle = _oracle;
         jobId = _jobId;
         fee = _fee;
+        requiredClass = _requiredClass; 
     }
     
     /**
@@ -57,24 +69,37 @@ contract AIChainlinkRequest is ChainlinkClient {
      * @return The maximum total fee that will be charged in a call.
      */
     function maxTotalFee(uint256 /* requestedMaxOracleFee */) public view returns (uint256) {
-        // for this client contract, the fee is always the same.
+        // For this client contract, the fee is always the same.
         return fee;
     }
 
     /**
      * @notice Request an AI evaluation via the Chainlink oracle using user-funded LINK.
-     *         Extra parameters are accepted but ignored.
+     *         Extra parameters for oracle selection are accepted but ignored.
+     *         This function now checks that the passed _requestedClass matches the stored requiredClass.
      * @param cids An array of IPFS CIDs representing the data to be evaluated.
+     * @param addendumText Optional addendum text.
+     * @param _requestedClass The oracle class requested by the caller.
      * @return requestId The ID of the Chainlink request.
      */
     function requestAIEvaluationWithApproval(
         string[] memory cids,
-        uint256,
-        uint256,
-        uint256,
-        uint256
+        string memory addendumText,
+        uint256 /* _alpha */,
+        uint256 /* _maxFee */,
+        uint256 /* _estimatedBaseCost */,
+        uint256 /* _maxFeeBasedScalingFactor */,
+        uint64 _requestedClass
     ) public returns (bytes32 requestId) {
+        // Check that the requested class matches the stored requiredClass.
+        require(_requestedClass == requiredClass, "Requested class does not match required class");
+        
         require(cids.length > 0, "CIDs array must not be empty");
+        require(cids.length <= MAX_CID_COUNT, "Too many CIDs provided");
+        for (uint256 i = 0; i < cids.length; i++) {
+            require(bytes(cids[i]).length <= MAX_CID_LENGTH, "CID string too long");
+        }
+        require(bytes(addendumText).length <= MAX_ADDENDUM_LENGTH, "Addendum text string too long");
 
         // Pull exactly the fee amount from the caller.
         require(
@@ -84,7 +109,17 @@ contract AIChainlinkRequest is ChainlinkClient {
 
         // Build the Chainlink request.
         Chainlink.Request memory request = buildOperatorRequest(jobId, this.fulfill.selector);
-        string memory cidsConcatenated = concatenateCids(cids);
+
+        // Concatenate CIDs (comma delimited) and append the optional addendum.
+        bytes memory concatenatedBytes;
+        for (uint i = 0; i < cids.length; i++) 
+            concatenatedBytes = abi.encodePacked(concatenatedBytes, cids[i], i < cids.length - 1 ? "," : "");
+        string memory cidsConcatenated = string(concatenatedBytes);
+
+        if (bytes(addendumText).length > 0) {
+            cidsConcatenated = string(abi.encodePacked(cidsConcatenated, ":", addendumText));
+        }
+
         request.add("cid", cidsConcatenated);
 
         // Send the request using the fee just pulled from the caller.
@@ -137,17 +172,6 @@ contract AIChainlinkRequest is ChainlinkClient {
         }
         return string(concatenatedCids);
     }
-
-    /**
-     * @notice Allows the contract owner to withdraw any LINK tokens held by the contract.
-     * @param _to The address to send the LINK tokens to.
-     * @param _amount The amount of LINK tokens to withdraw.
-     */
-    // function withdrawLink(address payable _to, uint256 _amount) external {
-    //     require(_to != address(0), "Invalid recipient address");
-    //     LinkTokenInterface linkToken = LinkTokenInterface(chainlinkTokenAddress());
-    //    require(linkToken.transfer(_to, _amount), "Unable to transfer");
-    // }
 
     /**
      * @notice Returns the contract configuration.

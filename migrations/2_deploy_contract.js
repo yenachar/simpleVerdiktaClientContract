@@ -6,6 +6,7 @@ module.exports = function (deployer) {
 
 	          const fee = web3.utils.toWei("0.05", "ether"); // Example fee in LINK tokens
 	          const linkTokenAddress = "0xE4aB69C077896252FAFBD49EFD26B5D171A32410"; // Sepolia Base LINK token address
+	          const requiredClass = 128; // The required oracle class
 
-	          deployer.deploy(AIChainlinkRequest, oracleAddress, jobId, fee, linkTokenAddress);
+	          deployer.deploy(AIChainlinkRequest, oracleAddress, jobId, fee, linkTokenAddress, requiredClass);
 };
